@@ -1,0 +1,429 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 1: Global Safety Net (Default-Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Primitive Helpers
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'suyashkolhe15@gmail.com'
+      );
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    // Pillar 2: Validation Blueprint for StudentAccount
+    function isValidStudentAccount(data) {
+      return data.keys().hasAll([
+          'uid',
+          'studentId',
+          'fullName',
+          'hostelBlock',
+          'roomNumber',
+          'currentMonth',
+          'monthlyAllowance',
+          'rolloverTokens',
+          'tokenBalance',
+          'tokensUsed',
+          'tokensRefunded',
+          'mealsLoggedCount',
+          'guestMealsCount',
+          'skipsLoggedCount',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid',
+          'studentId',
+          'fullName',
+          'hostelBlock',
+          'roomNumber',
+          'currentMonth',
+          'monthlyAllowance',
+          'rolloverTokens',
+          'tokenBalance',
+          'tokensUsed',
+          'tokensRefunded',
+          'mealsLoggedCount',
+          'guestMealsCount',
+          'skipsLoggedCount',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.uid is string
+        && data.uid.size() >= 1
+        && data.uid.size() <= 128
+        && data.uid.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.uid == request.auth.uid
+        && data.studentId is string
+        && data.studentId.size() >= 3
+        && data.studentId.size() <= 32
+        && data.studentId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.fullName is string
+        && data.fullName.size() >= 1
+        && data.fullName.size() <= 100
+        && data.hostelBlock is string
+        && data.hostelBlock.size() >= 1
+        && data.hostelBlock.size() <= 60
+        && data.roomNumber is string
+        && data.roomNumber.size() >= 1
+        && data.roomNumber.size() <= 20
+        && data.currentMonth is string
+        && data.currentMonth.size() == 7
+        && data.currentMonth.matches('^[0-9]{4}-[0-9]{2}$')
+        && data.rolloverTokens is int
+        && data.rolloverTokens >= 0
+        && data.rolloverTokens <= 10
+        && data.monthlyAllowance is int
+        && data.monthlyAllowance == 60 + data.rolloverTokens
+        && data.tokenBalance is int
+        && data.tokenBalance >= 0
+        && data.tokenBalance <= 130
+        && data.tokensUsed is int
+        && data.tokensUsed >= 0
+        && data.tokensUsed <= 130
+        && data.tokensRefunded is int
+        && data.tokensRefunded >= 0
+        && data.tokensRefunded <= 60
+        && (data.tokenBalance == data.monthlyAllowance - data.tokensUsed + data.tokensRefunded)
+        && data.mealsLoggedCount is int
+        && data.mealsLoggedCount >= 0
+        && data.mealsLoggedCount <= 200
+        && data.guestMealsCount is int
+        && data.guestMealsCount >= 0
+        && data.guestMealsCount <= 100
+        && data.skipsLoggedCount is int
+        && data.skipsLoggedCount >= 0
+        && data.skipsLoggedCount <= 100
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // Pillar 2: Validation Blueprint for MealLog (supports both 'meal' and 'skip')
+    function isValidMealLog(data) {
+      return data.keys().hasAll([
+          'id',
+          'studentUid',
+          'studentId',
+          'entryKind',
+          'mealType',
+          'isGuestMeal',
+          'baseCost',
+          'tokenCost',
+          'refundTokens',
+          'targetMealDate',
+          'balanceBefore',
+          'balanceAfter',
+          'diningCounter',
+          'notes',
+          'billingMonth',
+          'loggedAtIso',
+          'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'studentUid',
+          'studentId',
+          'entryKind',
+          'mealType',
+          'isGuestMeal',
+          'baseCost',
+          'tokenCost',
+          'refundTokens',
+          'targetMealDate',
+          'balanceBefore',
+          'balanceAfter',
+          'diningCounter',
+          'notes',
+          'billingMonth',
+          'loggedAtIso',
+          'createdAt'
+        ])
+        && data.id is string
+        && data.id.size() >= 1
+        && data.id.size() <= 128
+        && data.id.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.studentUid is string
+        && data.studentUid.size() >= 1
+        && data.studentUid.size() <= 128
+        && data.studentUid.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.studentUid == request.auth.uid
+        && data.studentId is string
+        && data.studentId.size() >= 3
+        && data.studentId.size() <= 32
+        && data.studentId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.entryKind is string
+        && data.entryKind.size() <= 10
+        && (data.entryKind == 'meal' || data.entryKind == 'skip')
+        && data.mealType is string
+        && data.mealType.size() <= 16
+        && (
+          (data.mealType == 'breakfast' && data.baseCost == 1) ||
+          (data.mealType == 'lunch' && data.baseCost == 2) ||
+          (data.mealType == 'dinner' && data.baseCost == 2)
+        )
+        && data.isGuestMeal is bool
+        && data.baseCost is int
+        && data.tokenCost is int
+        && data.refundTokens is int
+        && (
+          (
+            data.entryKind == 'meal'
+            && data.refundTokens == 0
+            && data.tokenCost == (data.isGuestMeal ? data.baseCost * 2 : data.baseCost)
+            && data.balanceBefore >= 1
+            && (data.balanceBefore - data.tokenCost == data.balanceAfter)
+          )
+          ||
+          (
+            data.entryKind == 'skip'
+            && data.isGuestMeal == false
+            && data.tokenCost == 0
+            && (
+              (data.baseCost == 1 && data.refundTokens == 0) ||
+              (data.baseCost == 2 && data.refundTokens == 1)
+            )
+            && data.balanceBefore >= 0
+            && (data.balanceBefore + data.refundTokens == data.balanceAfter)
+          )
+        )
+        && data.targetMealDate is string
+        && data.targetMealDate.size() == 10
+        && data.targetMealDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && data.balanceBefore is int
+        && data.balanceBefore <= 130
+        && data.balanceAfter is int
+        && data.balanceAfter >= 0
+        && data.balanceAfter <= 130
+        && data.diningCounter is string
+        && data.diningCounter.size() >= 1
+        && data.diningCounter.size() <= 60
+        && data.notes is string
+        && data.notes.size() <= 200
+        && data.billingMonth is string
+        && data.billingMonth.size() == 7
+        && data.billingMonth.matches('^[0-9]{4}-[0-9]{2}$')
+        && data.loggedAtIso is string
+        && data.loggedAtIso.size() >= 10
+        && data.loggedAtIso.size() <= 40
+        && data.createdAt is timestamp;
+    }
+
+    // Pillar 2: Validation Blueprint for MessForecast
+    function isValidMessForecast(data) {
+      return data.keys().hasAll([
+          'forecastDate',
+          'enrolledStudents',
+          'studentsSkipped',
+          'studentsAttending',
+          'guestMealsCount',
+          'totalForecastMeals',
+          'exceedsCapacityThreshold',
+          'updatedByUid',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'forecastDate',
+          'enrolledStudents',
+          'studentsSkipped',
+          'studentsAttending',
+          'guestMealsCount',
+          'totalForecastMeals',
+          'exceedsCapacityThreshold',
+          'updatedByUid',
+          'updatedAt'
+        ])
+        && data.forecastDate is string
+        && data.forecastDate.size() == 10
+        && data.forecastDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && data.enrolledStudents is int
+        && data.enrolledStudents >= 0
+        && data.enrolledStudents <= 2000
+        && data.studentsSkipped is int
+        && data.studentsSkipped >= 0
+        && data.studentsSkipped <= data.enrolledStudents
+        && data.studentsAttending is int
+        && data.studentsAttending == (data.enrolledStudents - data.studentsSkipped)
+        && data.guestMealsCount is int
+        && data.guestMealsCount >= 0
+        && data.guestMealsCount <= 500
+        && data.totalForecastMeals is int
+        && data.totalForecastMeals == (data.studentsAttending + data.guestMealsCount)
+        && data.exceedsCapacityThreshold is bool
+        && data.exceedsCapacityThreshold == (data.totalForecastMeals > 120)
+        && data.updatedByUid is string
+        && data.updatedByUid.size() >= 1
+        && data.updatedByUid.size() <= 128
+        && data.updatedByUid.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.updatedByUid == request.auth.uid
+        && data.updatedAt is timestamp;
+    }
+
+    // Trusted Admin Registry
+    match /admins/{adminUid} {
+      allow get: if isOwner(adminUid) && isValidId(adminUid);
+      allow list, create, update, delete: if false;
+    }
+
+    // Admin Mess Forecasts Collection
+    match /forecasts/{forecastDate} {
+      allow get: if isValidId(forecastDate) && (isAdmin() || isVerifiedUser());
+      allow list: if isAdmin() && existing().forecastDate.size() == 10;
+
+      allow create: if isAdmin()
+        && isValidId(forecastDate)
+        && isValidMessForecast(incoming())
+        && incoming().forecastDate == forecastDate
+        && incoming().updatedAt == request.time;
+
+      allow update: if isAdmin()
+        && isValidId(forecastDate)
+        && isValidMessForecast(incoming())
+        && incoming().forecastDate == existing().forecastDate
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'enrolledStudents',
+          'studentsSkipped',
+          'studentsAttending',
+          'guestMealsCount',
+          'totalForecastMeals',
+          'exceedsCapacityThreshold',
+          'updatedByUid',
+          'updatedAt'
+        ]);
+
+      allow delete: if false;
+    }
+
+    // Student Account Collection
+    match /students/{studentUid} {
+      allow get: if (isOwner(studentUid) || isAdmin()) && isValidId(studentUid) && (existing().uid == request.auth.uid || isAdmin());
+      allow list: if (isOwner(studentUid) && existing().uid == request.auth.uid) || (isAdmin() && existing().uid.size() >= 1);
+
+      allow create: if isOwner(studentUid)
+        && isValidId(studentUid)
+        && isValidStudentAccount(incoming())
+        && incoming().uid == studentUid
+        && incoming().rolloverTokens == 0
+        && incoming().monthlyAllowance == 60
+        && incoming().tokenBalance == 60
+        && incoming().tokensUsed == 0
+        && incoming().tokensRefunded == 0
+        && incoming().mealsLoggedCount == 0
+        && incoming().guestMealsCount == 0
+        && incoming().skipsLoggedCount == 0
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if (isOwner(studentUid) || isAdmin())
+        && isValidId(studentUid)
+        && isValidStudentAccount(incoming())
+        && incoming().uid == existing().uid
+        && incoming().studentId == existing().studentId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          // Action 1: Meal Token Deduction (strictly decreases balance, never below 0)
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'tokenBalance',
+              'tokensUsed',
+              'mealsLoggedCount',
+              'guestMealsCount',
+              'updatedAt'
+            ])
+            && incoming().tokenBalance < existing().tokenBalance
+            && incoming().tokenBalance >= 0
+            && incoming().mealsLoggedCount == existing().mealsLoggedCount + 1
+          )
+          ||
+          // Action 2: Valid Meal Skip Refund (floor(baseCost / 2) added to balance & tokensRefunded)
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'tokenBalance',
+              'tokensRefunded',
+              'skipsLoggedCount',
+              'updatedAt'
+            ])
+            && incoming().tokenBalance >= existing().tokenBalance
+            && incoming().tokensRefunded >= existing().tokensRefunded
+            && incoming().skipsLoggedCount == existing().skipsLoggedCount + 1
+          )
+          ||
+          // Action 3: Monthly Rollover (capped at 10), Cycle Reset, or Profile Update
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'fullName',
+              'hostelBlock',
+              'roomNumber',
+              'currentMonth',
+              'monthlyAllowance',
+              'rolloverTokens',
+              'tokenBalance',
+              'tokensUsed',
+              'tokensRefunded',
+              'mealsLoggedCount',
+              'guestMealsCount',
+              'skipsLoggedCount',
+              'updatedAt'
+            ])
+          )
+        );
+
+      allow delete: if false;
+
+      // Subcollection: Meal Logs & Skip Refunds
+      match /mealLogs/{logId} {
+        allow get: if (isOwner(studentUid) || isAdmin())
+          && isValidId(studentUid)
+          && isValidId(logId)
+          && (existing().studentUid == request.auth.uid || isAdmin());
+
+        allow list: if (isOwner(studentUid) && existing().studentUid == request.auth.uid)
+          || (isAdmin() && existing().studentUid.size() >= 1);
+
+        allow create: if isOwner(studentUid)
+          && isValidId(studentUid)
+          && isValidId(logId)
+          && isValidMealLog(incoming())
+          && incoming().id == logId
+          && incoming().studentUid == studentUid
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/students/$(studentUid))
+          && get(/databases/$(database)/documents/students/$(studentUid)).data.uid == request.auth.uid
+          && getAfter(/databases/$(database)/documents/students/$(studentUid)).data.tokenBalance == incoming().balanceAfter;
+
+        allow update: if false;
+        allow delete: if false;
+      }
+    }
+  }
+}

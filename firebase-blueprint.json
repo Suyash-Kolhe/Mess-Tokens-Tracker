@@ -1,0 +1,309 @@
+{
+  "entities": {
+    "StudentAccount": {
+      "title": "StudentAccount",
+      "description": "Core student hostel mess account tracking monthly 60-token base allowance, rollover tokens (capped at 10), skip refunds, live balance, and consumption counters.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the student owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "studentId": {
+          "type": "string",
+          "description": "University hostel roll/registration identifier.",
+          "minLength": 3,
+          "maxLength": 32,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "fullName": {
+          "type": "string",
+          "description": "Full display name of the resident student.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "hostelBlock": {
+          "type": "string",
+          "description": "Hostel residence hall or wing name.",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "roomNumber": {
+          "type": "string",
+          "description": "Assigned hostel room number.",
+          "minLength": 1,
+          "maxLength": 20
+        },
+        "currentMonth": {
+          "type": "string",
+          "description": "Active billing cycle in YYYY-MM format.",
+          "minLength": 7,
+          "maxLength": 7,
+          "pattern": "^[0-9]{4}-[0-9]{2}$"
+        },
+        "monthlyAllowance": {
+          "type": "number",
+          "description": "Total opening monthly credit (60 base tokens + rolloverTokens from previous month, max 70)."
+        },
+        "rolloverTokens": {
+          "type": "number",
+          "description": "Unused tokens rolled over from the previous month, strictly capped at 10 (0 to 10)."
+        },
+        "tokenBalance": {
+          "type": "number",
+          "description": "Remaining spendable mess tokens in the current cycle (never below 0)."
+        },
+        "tokensUsed": {
+          "type": "number",
+          "description": "Cumulative tokens redeemed for meals during the current billing month."
+        },
+        "tokensRefunded": {
+          "type": "number",
+          "description": "Cumulative tokens refunded from valid meal skips (floor(baseCost / 2)) this month."
+        },
+        "mealsLoggedCount": {
+          "type": "number",
+          "description": "Total meal redemption transactions logged this month."
+        },
+        "guestMealsCount": {
+          "type": "number",
+          "description": "Total guest meal transactions logged this month."
+        },
+        "skipsLoggedCount": {
+          "type": "number",
+          "description": "Total valid meal skips logged before the 8 PM previous-day cutoff."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the student account was initialized."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the last meal deduction, skip refund, or rollover."
+        }
+      },
+      "required": [
+        "uid",
+        "studentId",
+        "fullName",
+        "hostelBlock",
+        "roomNumber",
+        "currentMonth",
+        "monthlyAllowance",
+        "rolloverTokens",
+        "tokenBalance",
+        "tokensUsed",
+        "tokensRefunded",
+        "mealsLoggedCount",
+        "guestMealsCount",
+        "skipsLoggedCount",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "MealLog": {
+      "title": "MealLog",
+      "description": "Immutable ledger record of a hostel meal redemption OR a validated pre-8PM previous-day meal skip refund.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the ledger entry.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "studentUid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the student who logged the entry.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "studentId": {
+          "type": "string",
+          "description": "Hostel roll number of the student.",
+          "minLength": 3,
+          "maxLength": 32,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "entryKind": {
+          "type": "string",
+          "description": "Whether this ledger record is a meal consumption or a valid meal skip.",
+          "enum": ["meal", "skip"]
+        },
+        "mealType": {
+          "type": "string",
+          "description": "Meal session category.",
+          "enum": ["breakfast", "lunch", "dinner"]
+        },
+        "isGuestMeal": {
+          "type": "boolean",
+          "description": "Whether the meal includes the 2x Guest Meal multiplier (false for skips)."
+        },
+        "baseCost": {
+          "type": "number",
+          "description": "Standard token rate (Breakfast=1, Lunch=2, Dinner=2)."
+        },
+        "tokenCost": {
+          "type": "number",
+          "description": "Deducted tokens for a meal (0 for a skip)."
+        },
+        "refundTokens": {
+          "type": "number",
+          "description": "Refunded tokens for a valid skip: floor(baseCost / 2) (0 for Breakfast, 1 for Lunch/Dinner; 0 for regular meal)."
+        },
+        "targetMealDate": {
+          "type": "string",
+          "description": "Target calendar date of the meal or skipped meal in YYYY-MM-DD format.",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "balanceBefore": {
+          "type": "number",
+          "description": "Student token balance immediately prior to this transaction."
+        },
+        "balanceAfter": {
+          "type": "number",
+          "description": "Student token balance immediately following this transaction (strictly >= 0)."
+        },
+        "diningCounter": {
+          "type": "string",
+          "description": "Mess hall line or skip cutoff verification tag.",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "notes": {
+          "type": "string",
+          "description": "Optional dietary note, guest name, or skip reason.",
+          "minLength": 0,
+          "maxLength": 200
+        },
+        "billingMonth": {
+          "type": "string",
+          "description": "Billing cycle identifier in YYYY-MM format.",
+          "minLength": 7,
+          "maxLength": 7,
+          "pattern": "^[0-9]{4}-[0-9]{2}$"
+        },
+        "loggedAtIso": {
+          "type": "string",
+          "description": "Simulated or live ISO-8601 timestamp when the action was logged.",
+          "minLength": 10,
+          "maxLength": 40
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Immutable server timestamp of ledger creation."
+        }
+      },
+      "required": [
+        "id",
+        "studentUid",
+        "studentId",
+        "entryKind",
+        "mealType",
+        "isGuestMeal",
+        "baseCost",
+        "tokenCost",
+        "refundTokens",
+        "targetMealDate",
+        "balanceBefore",
+        "balanceAfter",
+        "diningCounter",
+        "notes",
+        "billingMonth",
+        "loggedAtIso",
+        "createdAt"
+      ]
+    },
+    "MessForecast": {
+      "title": "MessForecast",
+      "description": "Admin daily hostel dining forecast aggregating enrolled students who have not skipped plus expected guest meals, flagging warnings above 120 meals.",
+      "type": "object",
+      "properties": {
+        "forecastDate": {
+          "type": "string",
+          "description": "Target forecast date in YYYY-MM-DD format.",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "enrolledStudents": {
+          "type": "number",
+          "description": "Total active hostel residents registered for dining."
+        },
+        "studentsSkipped": {
+          "type": "number",
+          "description": "Number of students who logged a valid pre-8PM skip for tomorrow."
+        },
+        "studentsAttending": {
+          "type": "number",
+          "description": "Students who have not skipped (enrolledStudents - studentsSkipped)."
+        },
+        "guestMealsCount": {
+          "type": "number",
+          "description": "Registered guest meals for tomorrow."
+        },
+        "totalForecastMeals": {
+          "type": "number",
+          "description": "Total projected meals (studentsAttending + guestMealsCount)."
+        },
+        "exceedsCapacityThreshold": {
+          "type": "boolean",
+          "description": "True when totalForecastMeals > 120."
+        },
+        "updatedByUid": {
+          "type": "string",
+          "description": "UID of the admin who published or updated the forecast.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the forecast update."
+        }
+      },
+      "required": [
+        "forecastDate",
+        "enrolledStudents",
+        "studentsSkipped",
+        "studentsAttending",
+        "guestMealsCount",
+        "totalForecastMeals",
+        "exceedsCapacityThreshold",
+        "updatedByUid",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/students/{studentUid}": {
+      "schema": {
+        "$ref": "#/entities/StudentAccount"
+      },
+      "description": "Primary student mess account document indexed by Firebase Auth UID."
+    },
+    "/students/{studentUid}/mealLogs/{logId}": {
+      "schema": {
+        "$ref": "#/entities/MealLog"
+      },
+      "description": "Subcollection of immutable meal token redemptions and skip refunds belonging to a student."
+    },
+    "/forecasts/{forecastDate}": {
+      "schema": {
+        "$ref": "#/entities/MessForecast"
+      },
+      "description": "Admin tomorrow meal forecast documents indexed by YYYY-MM-DD date."
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Mess Tokens — Hostel Meal & Dietary Credit Ledger",
+  "description": "Stage 1 hostel meal tracker and dietary token ledger for university students to manage 60 monthly meal tokens, guest meal multipliers, overdraft prevention, and monthly billing history.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
